@@ -1,0 +1,24 @@
+services:
+  weather:
+    image: weather:0.1.1
+    build:
+      context: ..
+      dockerfile: ./docker/Dockerfile
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8083
+      METEO_API: https://api.open-meteo.com
+      PHOTON_API: https://photon.komoot.io
+    # ports:
+    # - 8083:8083
+    networks:
+      - traefik_proxy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.weather.rule=Host(`weather.reftch.com`)
+      - traefik.http.services.weather.loadbalancer.server.port=8083
+
+networks:
+  traefik_proxy:
+    external: true

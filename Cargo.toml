@@ -1,0 +1,25 @@
+[package]
+name = "weather-service"
+version = "0.1.1"
+edition = "2024"
+
+[dependencies]
+r-server = "0.1.2"
+
+[build]
+rustflags = ["-Z", "threads=8"]
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.release]
+strip = true
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
