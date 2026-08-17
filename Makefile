@@ -30,8 +30,10 @@ web-install:
 
 build:
 	$(MAKE) -j2 web-build api-build
+	mkdir -p build && cp -r apps/api/target/release/weather-service build/ && cp -r apps/api/assets build/
 
 clean:
 	rm -rf apps/api/assets/ui
 	rm -rf apps/api/target
 	rm -rf apps/web/node_modules
+	rm -rf build
