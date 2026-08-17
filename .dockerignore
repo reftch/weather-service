@@ -1,2 +1,2 @@
-target
-web/node_modules
+apps/api/target
+apps/web/node_modules

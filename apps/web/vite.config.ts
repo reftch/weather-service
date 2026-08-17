@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [preact(), tailwindcss()],
   clearScreen: false,
   build: {
-    outDir: '../assets/ui',
+    outDir: '../api/assets/ui',
     emptyOutDir: true,
     cssCodeSplit: false,
     manifest: false,

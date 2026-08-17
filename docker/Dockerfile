@@ -5,8 +5,8 @@ ARG ARTIFACT=weather-service
 FROM rust:1.96.1-alpine AS builder
 
 ARG ARTIFACT
-# ARG TARGETARCH=aarch64
-ARG TARGETARCH=x86_64
+ARG TARGETARCH=aarch64
+# ARG TARGETARCH=x86_64
 
 # Install musl-dev for static compilation
 # Also install build essentials needed by some crates
@@ -20,18 +20,15 @@ ENV PATH=$BUN_INSTALL/bin:$PATH
 WORKDIR /app
 
 # Copy manifests first for dependency caching
-COPY Cargo.toml Cargo.lock ./
-COPY src ./src
-COPY assets ./assets
-COPY web ./web
+COPY apps ./apps
 
 # Frontend
-RUN bun install --cwd web
-RUN bun --cwd web build
+RUN bun install --cwd apps/web
+RUN bun --cwd apps/web build
 
 # Build a statically linked binary
 # The musl target produces a fully static binary by default
-RUN cargo build --release --target $TARGETARCH-unknown-linux-musl && \
+RUN cd apps/api && cargo build --release --target $TARGETARCH-unknown-linux-musl && \
     cp target/$TARGETARCH-unknown-linux-musl/release/$ARTIFACT /application
 
 # Create cerificates
@@ -52,7 +49,7 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt \
 
 # Copy the statically linked binary
 COPY --from=builder /application /application
-COPY --from=builder /app/assets /assets
+COPY --from=builder /app/apps/api/assets /assets
 
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
