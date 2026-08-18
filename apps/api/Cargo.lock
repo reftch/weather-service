@@ -120,9 +120,9 @@ dependencies = [
 
 [[package]]
 name = "r-server"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52fc0acd6644433d2951a211d16824997dc112367d2897ceba937d878d9ab7e7"
+checksum = "aabeabf75fd0496d6ec7a83abe262ba2e2d6c13c3c4094783c9fdc85dcd79a7a"
 dependencies = [
  "libc",
  "memchr",

@@ -5,7 +5,7 @@ dev:
 	$(MAKE) -j2 api web
 
 api:
-	cd apps/api && cargo watch -x run
+	cd apps/api && PORT=8083 cargo watch -x run
 
 api-build:
 	cd apps/api && cargo build --release
