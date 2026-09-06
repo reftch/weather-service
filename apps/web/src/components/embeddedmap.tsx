@@ -1,4 +1,10 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+import markerIconUrl from 'leaflet/dist/images/marker-icon.png';
+import markerIconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
+import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png';
 
 interface MapProps {
   latitude?: number;
@@ -6,13 +12,6 @@ interface MapProps {
   width?: string;
   height?: string;
   onCoordinatesChange?: (lat: number, lng: number) => void; // Callback for external coordinates
-}
-
-// Declare the global L variable
-declare global {
-  interface Window {
-    L: any;
-  }
 }
 
 const EmbeddedMap: preact.FunctionalComponent<MapProps> = ({
@@ -28,19 +27,28 @@ const EmbeddedMap: preact.FunctionalComponent<MapProps> = ({
   const [zoomLevel, setZoomLevel] = useState(13);
 
   useEffect(() => {
-    if (!mapRef.current || !window.L) return;
+    if (!mapRef.current) return;
+
+    // Fix default marker icon paths for Vite/bundler (otherwise icons are 404)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconUrl: markerIconUrl,
+      iconRetinaUrl: markerIconRetinaUrl,
+      shadowUrl: markerShadowUrl,
+    });
 
     // Initialize map
-    const map = window.L.map(mapRef.current).setView([latitude, longitude], zoomLevel);
+    const map = L.map(mapRef.current).setView([latitude, longitude], zoomLevel);
     mapInstanceRef.current = map;
 
     // Add OpenStreetMap tiles
-    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
     // Add marker and store reference
-    const marker = window.L.marker([latitude, longitude]).addTo(map)
+    const marker = L.marker([latitude, longitude]).addTo(map)
       .bindPopup('Location')
       .openPopup();
 

@@ -4,7 +4,7 @@ version = "0.1.1"
 edition = "2024"
 
 [dependencies]
-r-server = "0.1.3"
+r-server = "0.1"
 
 [build]
 rustflags = ["-Z", "threads=8"]

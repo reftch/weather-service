@@ -8,6 +8,5 @@
 **/mutants.out*/
 
 apps/web/node_modules
-apps/api/assets/ui
 apps/api/target
 build

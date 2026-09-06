@@ -12,6 +12,7 @@
     "@tailwindcss/vite": "^4.3.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "leaflet": "^1.9.4",
     "lucide-react": "^1.17.0",
     "preact": "^10.29.1",
     "radix-ui": "^1.4.3",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.10.5",
+    "@types/leaflet": "^1.9.22",
     "@types/node": "^24.12.3",
     "typescript": "~6.0.2",
     "vite": "^8.0.12"

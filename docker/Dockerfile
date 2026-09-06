@@ -5,8 +5,8 @@ ARG ARTIFACT=weather-service
 FROM rust:1.96.1-alpine AS builder
 
 ARG ARTIFACT
-# ARG TARGETARCH=aarch64
-ARG TARGETARCH=x86_64
+ARG TARGETARCH=aarch64
+# ARG TARGETARCH=x86_64
 
 # Install musl-dev for static compilation
 # Also install build essentials needed by some crates
@@ -22,7 +22,7 @@ WORKDIR /app
 # Copy manifests first for dependency caching
 COPY apps ./apps
 
-# Frontend
+# Frontend - Vite builds to apps/web/dist (single source of truth, no api/assets)
 RUN bun install --cwd apps/web
 RUN bun --cwd apps/web build
 
@@ -47,9 +47,9 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt \
 # COPY --from=builder /app/cert.pem /cert.pem
 # COPY --from=builder /app/key.pem /key.pem
 
-# Copy the statically linked binary
+# Copy the statically linked binary and frontend (now only from apps/web/dist)
 COPY --from=builder /application /application
-COPY --from=builder /app/apps/api/assets /assets
+COPY --from=builder /app/apps/web/dist /assets
 
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 

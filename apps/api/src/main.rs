@@ -1,11 +1,33 @@
+use std::path::Path;
+
 use r_server::{
     client::Client,
+    core::http::Server,
     debug,
     request::Request,
     response::{ContentType, Response, Status::BadRequest},
     router::Method,
-    server::http::Server,
 };
+
+fn resolve_assets_path() -> String {
+    if let Ok(p) = std::env::var("ASSETS_PATH") {
+        return p;
+    }
+    // Try common locations relative to different working directories and Docker.
+    for candidate in [
+        "../web/dist",
+        "apps/web/dist",
+        "./assets",
+        "/assets",
+        "web/dist",
+    ] {
+        if Path::new(candidate).is_dir() {
+            return candidate.to_string();
+        }
+    }
+    // Default for local dev (cargo run from apps/api)
+    "../web/dist".to_string()
+}
 
 fn get_temperature(req: &Request, res: &mut Response) {
     let latitude = match req.query("latidude") {
@@ -85,10 +107,12 @@ fn get_reverse(req: &Request, res: &mut Response) {
 }
 
 fn main() -> std::io::Result<()> {
+    let assets_path = resolve_assets_path();
     Server::new()?
         .route(Method::GET, "/api/v1/cities", get_cities)
         .route(Method::GET, "/api/v1/reverse", get_reverse)
         .route(Method::GET, "/api/v1/temperature", get_temperature)
+        .assets_path(&assets_path)
         .run()?;
 
     Ok(())
