@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { Skeleton } from './ui/skeleton';
 
 import markerIconUrl from 'leaflet/dist/images/marker-icon.png';
 import markerIconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
 import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png';
+
+export const MapSkeleton = ({ width = "100%", height = "610px" }: { width?: string; height?: string }) => (
+  <div className="md:pl-4 animate-pulse" style={{ width, height }}>
+    <Skeleton className="w-full h-full rounded-md" />
+  </div>
+);
 
 interface MapProps {
   latitude?: number;

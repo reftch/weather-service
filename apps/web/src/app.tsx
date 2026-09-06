@@ -4,14 +4,15 @@ import { Button } from "./components/ui/button";
 import { getCity, getMeteo } from "./lib/api";
 import { defaultCity, getGeolocation } from "./lib/utils";
 
-import { EmbeddedMap } from "./components/embeddedmap";
-import { ForecastPanel } from "./components/forecastpanel";
-import { HourlyForecastPanel } from "./components/hourlyforecast";
+import { EmbeddedMap, MapSkeleton } from "./components/embeddedmap";
+import { ForecastPanel, ForecastPanelSkeleton } from "./components/forecastpanel";
+import { HourlyForecastPanel, HourlyForecastSkeleton } from "./components/hourlyforecast";
 import type { City } from "./lib/model";
 
 export function App() {
   const [city, setCity] = useState<City>(defaultCity());
   const [currentDay, setCurrentDay] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const loadCity = async () => {
@@ -42,10 +43,17 @@ export function App() {
   }, []);
 
   const onSearch = async (city: City) => {
-    if (city) {
+    if (!city) {
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    try {
       sessionStorage.setItem("city-session", JSON.stringify(city));
-      city = await getMeteo(city);
-      setCity(city);
+      const withMeteo = await getMeteo(city);
+      setCity(withMeteo);
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -69,10 +77,10 @@ export function App() {
             <Button variant="default" className="hidden sm:block" disabled>Sign In</Button>
           </Header>
 
-          <HourlyForecastPanel city={city} currentDay={currentDay} />
+          {isLoading ? <HourlyForecastSkeleton /> : <HourlyForecastPanel city={city} currentDay={currentDay} />}
           <div className="pt-6 flex flex-col md:flex-row">
-            <ForecastPanel city={city} onCurrentDay={(d) => setCurrentDay(d)} />
-            {city.coordinate && <EmbeddedMap
+            {isLoading ? <ForecastPanelSkeleton /> : <ForecastPanel city={city} onCurrentDay={(d) => setCurrentDay(d)} />}
+            {isLoading ? <MapSkeleton /> : city.coordinate && <EmbeddedMap
               latitude={city.coordinate.latitude}
               longitude={city.coordinate.longitude}
               onCoordinatesChange={handleCoordinatesChange}

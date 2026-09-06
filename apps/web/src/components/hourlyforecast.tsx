@@ -2,8 +2,37 @@ import { ChevronDownIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { weatherIcons, type City } from '../lib/model';
 import { Card, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger } from "./ui/popover";
+import { Skeleton } from './ui/skeleton';
 import CityPanel from './citypanel';
 import { useEffect, useRef, useState } from 'react';
+
+export const HourlyForecastSkeleton = () => (
+  <Card className="w-full mt-6">
+    <CardHeader className="flex items-center gap-0 space-y-0 border-b sm:flex-row">
+      <div className="flex-1 pt-1 space-y-2">
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-4 w-32" />
+      </div>
+      <div className="flex flex-col text-right space-y-2 items-end">
+        <Skeleton className="h-9 w-28" />
+        <Skeleton className="h-4 w-36" />
+      </div>
+    </CardHeader>
+    <div className="flex flex-col">
+      <div className="flex items-center justify-between mx-5 pb-4">
+        <div className="flex mt-2 space-x-2 justify-between items-center w-full overflow-hidden">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div key={i} className="flex flex-col items-center pt-2 h-[92px] w-20 bg-muted rounded-md shrink-0 gap-2">
+              <Skeleton className="h-4 w-10" />
+              <Skeleton className="h-5 w-8" />
+              <Skeleton className="h-6 w-12" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </Card>
+);
 
 const getCoordinates = (c: City) => {
   let title = ` ${c.coordinate.latitude.toFixed(2)}, ${c.coordinate.longitude.toFixed(2)}`;
@@ -52,7 +81,8 @@ const getTitle = (city: City) => {
 
 const HourlyForecastPanel = ({ city, currentDay }: { city: City, currentDay: number }) => {
   if (!city.hourly_forecast || city.hourly_forecast.length === 0) {
-    return <div>No hourly forecast data available</div>;
+    if (city.city === 'Loading...') return <HourlyForecastSkeleton />;
+    return <div className="w-full mt-6 p-8 text-center text-muted-foreground">No hourly forecast data available</div>;
   }
 
   // console.log(currentDay, city.hourly_forecast)

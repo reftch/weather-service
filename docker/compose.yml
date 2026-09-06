@@ -10,8 +10,8 @@ services:
       PORT: 8083
       METEO_API: https://api.open-meteo.com
       PHOTON_API: https://photon.komoot.io
-    ports:
-    - 8083:8083
+    # ports:
+    # - 8083:8083
     networks:
       - traefik_proxy
     labels:

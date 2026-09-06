@@ -1,7 +1,29 @@
 import { CalendarDays } from 'lucide-react';
 import { weatherIcons, type City } from '../lib/model';
 import { Card, CardHeader, CardTitle } from './ui/card';
+import { Skeleton } from './ui/skeleton';
 import { useEffect, useRef, useState } from 'preact/hooks';
+
+export const ForecastPanelSkeleton = () => (
+  <Card className="w-full md:max-w-4/10">
+    <CardHeader className="flex items-center gap-0 space-y-0 border-b sm:flex-row">
+      <Skeleton className="h-6 w-40" />
+    </CardHeader>
+    <div className="grid mt-2 items-center px-4 pb-4 gap-1">
+      {Array.from({ length: 10 }).map((_, i) => (
+        <div key={i} className="w-full flex flex-row gap-2 items-center px-5 h-12 bg-muted rounded-md">
+          <Skeleton className="h-4 w-20 basis-3/6" />
+          <Skeleton className="h-4 w-24 basis-5/6 hidden sm:block" />
+          <div className="flex items-center gap-2 basis-4/6 justify-end">
+            <Skeleton className="h-6 w-6 rounded-full" />
+            <Skeleton className="h-4 w-8" />
+            <Skeleton className="h-4 w-8" />
+          </div>
+        </div>
+      ))}
+    </div>
+  </Card>
+);
 
 type ForecastPanelProps = React.ComponentProps<"div"> & {
   city: City,
@@ -13,7 +35,8 @@ const ForecastPanel = ({ city, onCurrentDay }: ForecastPanelProps) => {
   const parentRef = useRef<HTMLDivElement>(null);
 
   if (!city.daily_forecast || city.daily_forecast.length === 0) {
-    return <div>No forecast data available</div>;
+    if (city.city === 'Loading...') return <ForecastPanelSkeleton />;
+    return <div className="w-full md:max-w-4/10 p-8 text-center text-muted-foreground">No forecast data available</div>;
   }
 
   useEffect(() => {
