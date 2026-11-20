@@ -32,3 +32,12 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Go build output
+apps/api/weather-service
+
+# Frontend dependencies and build output
+apps/web/node_modules
+apps/web/dist
+
+build
