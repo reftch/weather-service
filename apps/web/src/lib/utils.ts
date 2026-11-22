@@ -3,9 +3,10 @@ import { twMerge } from "tailwind-merge"
 import type { City, Coordinate } from "./model"
 import { CoordinateValidator } from "./validator"
 
-const CITY_CACHE_KEY = "city-session"
-const CITY_CACHE_VERSION = 2
-const CITY_CACHE_TTL_MS = 24 * 60 * 60 * 1000
+const CITY_CACHE_KEY = "city-cache"
+const LEGACY_CITY_CACHE_KEY = "city-session"
+const CITY_CACHE_VERSION = 3
+const CITY_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
 type CachedCity = {
   version: number
@@ -17,45 +18,76 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function loadCachedCity(): City | undefined {
-  try {
-    const raw = sessionStorage.getItem(CITY_CACHE_KEY)
-    if (!raw) return undefined
+function parseCachedCity(raw: string): City | undefined {
+  const parsed = JSON.parse(raw) as any
+  if (!parsed || typeof parsed !== "object") return undefined
 
-    const cached = JSON.parse(raw) as Partial<CachedCity>
-    const city = cached.city
-
-    const isValid =
-      cached.version === CITY_CACHE_VERSION &&
-      typeof cached.savedAt === "number" &&
-      Date.now() - cached.savedAt < CITY_CACHE_TTL_MS &&
-      city !== undefined &&
-      typeof city.city === "string" &&
-      city.city !== "Loading..." &&
-      city.city !== "Unknown location" &&
-      city.coordinate !== undefined &&
-      CoordinateValidator.validateCoordinate(city.coordinate)
-
-    if (!isValid) {
-      sessionStorage.removeItem(CITY_CACHE_KEY)
-      return undefined
-    }
-
-    return city
-  } catch {
-    sessionStorage.removeItem(CITY_CACHE_KEY)
+  let city: any
+  if (typeof parsed.city === "string") {
+    // Legacy format: the raw City object.
+    city = parsed
+  } else if (parsed.city && typeof parsed.city === "object") {
+    if (parsed.version !== CITY_CACHE_VERSION) return undefined
+    if (typeof parsed.savedAt !== "number") return undefined
+    if (Date.now() - parsed.savedAt > CITY_CACHE_TTL_MS) return undefined
+    city = parsed.city
+  } else {
     return undefined
   }
+
+  if (
+    typeof city.city !== "string" ||
+    city.city === "Loading..." ||
+    city.city === "Unknown location" ||
+    !city.coordinate ||
+    !CoordinateValidator.validateCoordinate(city.coordinate)
+  ) {
+    return undefined
+  }
+
+  return city as City
+}
+
+export function loadCachedCity(): City | undefined {
+  const sources: Array<[Storage, string]> = [
+    [localStorage, CITY_CACHE_KEY],
+    [sessionStorage, LEGACY_CITY_CACHE_KEY],
+  ]
+
+  for (const [storage, key] of sources) {
+    try {
+      const raw = storage.getItem(key)
+      if (!raw) continue
+
+      const city = parseCachedCity(raw)
+      if (city) {
+        // Refresh the timestamp and migrate legacy entries to persistent storage.
+        saveCachedCity(city)
+        return city
+      }
+      storage.removeItem(key)
+    } catch {
+      try {
+        storage.removeItem(key)
+      } catch {
+        // Storage unavailable; ignore.
+      }
+    }
+  }
+
+  return undefined
 }
 
 export function saveCachedCity(city: City): void {
+  const cached: CachedCity = {
+    version: CITY_CACHE_VERSION,
+    savedAt: Date.now(),
+    city,
+  }
+
   try {
-    const cached: CachedCity = {
-      version: CITY_CACHE_VERSION,
-      savedAt: Date.now(),
-      city,
-    }
-    sessionStorage.setItem(CITY_CACHE_KEY, JSON.stringify(cached))
+    localStorage.setItem(CITY_CACHE_KEY, JSON.stringify(cached))
+    sessionStorage.removeItem(LEGACY_CITY_CACHE_KEY)
   } catch {
     // Storage can be unavailable (private mode, quota); ignore.
   }

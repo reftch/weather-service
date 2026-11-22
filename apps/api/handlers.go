@@ -259,15 +259,19 @@ func (a *apiHandlers) proxy(w http.ResponseWriter, r *http.Request, base *url.UR
 	_, _ = w.Write(body)
 }
 
+func writeBody(w http.ResponseWriter, body []byte) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(body)
+}
+
 func writeJSON(w http.ResponseWriter, value any) {
 	body, err := json.Marshal(value)
 	if err != nil {
 		upstreamError(w, err)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(body)
+	writeBody(w, body)
 }
 
 func badRequest(w http.ResponseWriter, message string) {

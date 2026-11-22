@@ -36,6 +36,8 @@ export type City = {
   country: string
   countrycode?: string
   coordinate: Coordinate
+  /** Full reverse-geocoding properties, flattened for display. */
+  details?: Record<string, string | number>
   current: {
     temperature_2m: number
     interval: number

@@ -99,7 +99,7 @@ func TestGetReverse(t *testing.T) {
 	var gotQuery map[string][]string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath, gotQuery = r.URL.Path, r.URL.Query()
-		_, _ = io.WriteString(w, `{"features":[]}`)
+		_, _ = io.WriteString(w, `{"features":[{"type":"Feature","properties":{"name":"Berlin"}}]}`)
 	}))
 	defer upstream.Close()
 
@@ -113,7 +113,8 @@ func TestGetReverse(t *testing.T) {
 	if gotPath != "/reverse" {
 		t.Errorf("upstream path = %q, want /reverse", gotPath)
 	}
-	if want := map[string][]string{"lat": {"1.5"}, "lon": {"-2.5"}}; !reflect.DeepEqual(gotQuery, want) {
+	want := map[string][]string{"lat": {"1.5"}, "lon": {"-2.5"}}
+	if !reflect.DeepEqual(gotQuery, want) {
 		t.Errorf("upstream query = %v, want %v", gotQuery, want)
 	}
 }

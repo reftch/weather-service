@@ -1,6 +1,44 @@
 import type { City, Coordinate } from "./model";
 import { defaultCity } from "./utils";
 
+// Flatten Photon properties so every available field can be displayed,
+// including nested objects such as "extra".
+const flattenDetails = (
+  value: unknown,
+  key: string,
+  out: Record<string, string | number>,
+) => {
+  if (value === null || value === undefined) return;
+
+  if (typeof value === "string" || typeof value === "number") {
+    out[key] = value;
+    return;
+  }
+
+  if (typeof value === "boolean") {
+    out[key] = value ? "yes" : "no";
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    const scalars = value.filter(
+      (item) => typeof item === "string" || typeof item === "number",
+    );
+    if (scalars.length === value.length) {
+      out[key] = scalars.join(", ");
+    }
+    return;
+  }
+
+  if (typeof value === "object") {
+    for (const [childKey, childValue] of Object.entries(
+      value as Record<string, unknown>,
+    )) {
+      flattenDetails(childValue, `${key}.${childKey}`, out);
+    }
+  }
+};
+
 export const getCity = async (coordinate: Coordinate): Promise<City> => {
   // Reverse geocoding is best-effort: weather still works when it fails.
   const city: City = {
@@ -21,21 +59,29 @@ export const getCity = async (coordinate: Coordinate): Promise<City> => {
       return city;
     }
 
+    const properties = c.properties ?? {};
+    const details: Record<string, string | number> = {};
+    for (const [key, value] of Object.entries(properties)) {
+      flattenDetails(value, key, details);
+    }
+
+    // Keep every available field, including building-level address data.
     return {
-      id: c.properties.osm_id,
-      key: c.properties.osm_key,
-      value: c.properties.osm_value,
-      postcode: c.properties.postcode,
-      housenumber: c.properties.housenumber,
-      street: c.properties.street,
-      type: c.properties.type,
-      district: c.properties.district,
-      city: c.properties.city ?? 'Unknown location',
-      state: c.properties.state,
-      country: c.properties.country,
-      countrycode: c.properties.countrycode,
+      id: properties.osm_id,
+      key: properties.osm_key,
+      value: properties.osm_value,
+      postcode: properties.postcode,
+      housenumber: properties.housenumber,
+      street: properties.street,
+      type: properties.type,
+      district: properties.district,
+      city: properties.city ?? properties.name ?? 'Unknown location',
+      state: properties.state,
+      country: properties.country,
+      countrycode: properties.countrycode,
       elevation: 0,
       coordinate,
+      details,
       current: {
         temperature_2m: 0,
         interval: 0,
