@@ -2,7 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import { Header, HeaderSearch, HeaderTitle } from "./components/header";
 import { Button } from "./components/ui/button";
 import { getCity, getMeteo } from "./lib/api";
-import { defaultCity, getGeolocation } from "./lib/utils";
+import { defaultCity, getGeolocation, loadCachedCity, saveCachedCity } from "./lib/utils";
 
 import { EmbeddedMap, MapSkeleton } from "./components/embeddedmap";
 import { ForecastPanel, ForecastPanelSkeleton } from "./components/forecastpanel";
@@ -15,43 +15,56 @@ export function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+
     const loadCity = async () => {
-      // Try to load city from session storage
-      const savedCity = sessionStorage.getItem("city-session");
-      if (savedCity) {
-        onSearch(JSON.parse(savedCity));
+      // Only trust a validated, recent cache entry (e.g. an explicit city search).
+      const cachedCity = loadCachedCity();
+      if (cachedCity) {
+        await onSearch(cachedCity, false);
         return;
-      } else {
-        const defaultCity = await getCity(city.coordinate);
-        onSearch(defaultCity!);
       }
 
+      setIsLoading(true);
       try {
-        // Attempt to get user's geolocation
+        // Prefer the browser's location; fall back to the default city when
+        // geolocation is denied or unavailable (common in incognito windows).
         const coordinate = await getGeolocation();
-        if (coordinate) {
-          const c = await getCity(coordinate);
-          onSearch(c!);
-        }
+        if (cancelled) return;
+
+        const city = await getCity(coordinate ?? defaultCity().coordinate);
+        if (cancelled) return;
+
+        await onSearch(city, false);
       } catch (error) {
-        // Handle any errors during geolocation or city lookup
         console.error('Failed to load city:', error);
+        if (!cancelled) {
+          const city = await getCity(defaultCity().coordinate);
+          await onSearch(city, false);
+        }
       }
     };
 
     loadCity();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const onSearch = async (city: City) => {
+  const onSearch = async (city: City, cache = true) => {
     if (!city) {
       setIsLoading(false);
       return;
     }
     setIsLoading(true);
     try {
-      sessionStorage.setItem("city-session", JSON.stringify(city));
       const withMeteo = await getMeteo(city);
       setCity(withMeteo);
+      // Cache only explicit selections so a stale auto-detected location can
+      // never override a fresh geolocation on the next visit.
+      if (cache) {
+        saveCachedCity(city);
+      }
     } finally {
       setIsLoading(false);
     }

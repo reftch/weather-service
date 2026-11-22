@@ -8,13 +8,14 @@ import (
 	"testing"
 )
 
-func testRouter(t *testing.T, meteoURL, photonURL string) http.Handler {
+func testRouter(t *testing.T, meteoURL, geocodeURL, photonURL string) http.Handler {
 	t.Helper()
 	h, err := newRouter(config{
 		host:       "127.0.0.1",
 		port:       8080,
 		assetsPath: t.TempDir(),
 		meteoAPI:   meteoURL,
+		geocodeAPI: geocodeURL,
 		photonAPI:  photonURL,
 	})
 	if err != nil {
@@ -24,28 +25,72 @@ func testRouter(t *testing.T, meteoURL, photonURL string) http.Handler {
 }
 
 func TestGetCities(t *testing.T) {
-	var gotPath, gotQuery string
+	var gotPath string
+	var gotQuery map[string][]string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotPath, gotQuery = r.URL.Path, r.URL.RawQuery
-		_, _ = io.WriteString(w, `{"features":[]}`)
+		gotPath, gotQuery = r.URL.Path, r.URL.Query()
+		_, _ = io.WriteString(w, `{"results":[{"id":123,"name":"London","latitude":2.5,"longitude":1.5,"feature_code":"PPLC","country_code":"GB","country":"United Kingdom","admin1":"England","postcodes":["SW1"]}]}`)
 	}))
 	defer upstream.Close()
 
 	rec := httptest.NewRecorder()
-	testRouter(t, "", upstream.URL).ServeHTTP(rec,
+	testRouter(t, "", upstream.URL, "").ServeHTTP(rec,
 		httptest.NewRequest(http.MethodGet, "/api/v1/cities?keyword=London", nil))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
-	if gotPath != "/api/" || gotQuery != "q=London" {
-		t.Errorf("upstream request = %s?%s, want /api/?q=London", gotPath, gotQuery)
+	if gotPath != "/v1/search" {
+		t.Errorf("upstream path = %q, want /v1/search", gotPath)
 	}
-	if got := rec.Body.String(); got != `{"features":[]}` {
-		t.Errorf("body = %q", got)
+	want := map[string][]string{
+		"name":     {"London"},
+		"count":    {"10"},
+		"language": {"en"},
+		"format":   {"json"},
+	}
+	if !reflect.DeepEqual(gotQuery, want) {
+		t.Errorf("upstream query = %v, want %v", gotQuery, want)
+	}
+	wantBody := `{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[1.5,2.5]},"properties":{"osm_id":123,"name":"London","state":"England","country":"United Kingdom","countrycode":"GB","type":"PPLC","postcode":"SW1"}}]}`
+	if got := rec.Body.String(); got != wantBody {
+		t.Errorf("body = %q, want %q", got, wantBody)
 	}
 	if got := rec.Header().Get("Content-Type"); got != "application/json" {
 		t.Errorf("content type = %q", got)
+	}
+}
+
+func TestGetCitiesNoResults(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{}`)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	testRouter(t, "", upstream.URL, "").ServeHTTP(rec,
+		httptest.NewRequest(http.MethodGet, "/api/v1/cities?keyword=Nowhere", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if got, want := rec.Body.String(), `{"type":"FeatureCollection","features":[]}`; got != want {
+		t.Errorf("body = %q, want %q", got, want)
+	}
+}
+
+func TestGetCitiesUpstreamFailure(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "rate limited", http.StatusTooManyRequests)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	testRouter(t, "", upstream.URL, "").ServeHTTP(rec,
+		httptest.NewRequest(http.MethodGet, "/api/v1/cities?keyword=London", nil))
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", rec.Code)
 	}
 }
 
@@ -59,7 +104,7 @@ func TestGetReverse(t *testing.T) {
 	defer upstream.Close()
 
 	rec := httptest.NewRecorder()
-	testRouter(t, "", upstream.URL).ServeHTTP(rec,
+	testRouter(t, "", "", upstream.URL).ServeHTTP(rec,
 		httptest.NewRequest(http.MethodGet, "/api/v1/reverse?lat=1.5&lon=-2.5", nil))
 
 	if rec.Code != http.StatusOK {
@@ -83,7 +128,7 @@ func TestGetTemperature(t *testing.T) {
 	defer upstream.Close()
 
 	rec := httptest.NewRecorder()
-	testRouter(t, upstream.URL, "").ServeHTTP(rec,
+	testRouter(t, upstream.URL, "", "").ServeHTTP(rec,
 		httptest.NewRequest(http.MethodGet, "/api/v1/temperature?latidude=1.5&longtitude=-2.5", nil))
 
 	if rec.Code != http.StatusOK {
@@ -116,7 +161,7 @@ func TestMissingParameters(t *testing.T) {
 		{"/api/v1/temperature?latidude=1", "Missing longtitude"},
 		{"/api/v1/temperature?longtitude=1", "Missing latidude"},
 	}
-	router := testRouter(t, "", "")
+	router := testRouter(t, "", "", "")
 	for _, tt := range tests {
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
@@ -135,7 +180,7 @@ func TestUpstreamFailure(t *testing.T) {
 	upstream.Close()
 
 	rec := httptest.NewRecorder()
-	testRouter(t, upstreamURL, "").ServeHTTP(rec,
+	testRouter(t, upstreamURL, "", "").ServeHTTP(rec,
 		httptest.NewRequest(http.MethodGet, "/api/v1/temperature?latidude=1&longtitude=2", nil))
 
 	if rec.Code != http.StatusBadGateway {

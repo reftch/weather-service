@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -13,9 +14,10 @@ import (
 const upstreamTimeout = 10 * time.Second
 
 type apiHandlers struct {
-	meteoURL  *url.URL
-	photonURL *url.URL
-	client    *http.Client
+	meteoURL   *url.URL
+	geocodeURL *url.URL
+	photonURL  *url.URL
+	client     *http.Client
 }
 
 func newRouter(cfg config) (http.Handler, error) {
@@ -23,15 +25,20 @@ func newRouter(cfg config) (http.Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid METEO_API %q: %w", cfg.meteoAPI, err)
 	}
+	geocodeURL, err := url.Parse(cfg.geocodeAPI)
+	if err != nil {
+		return nil, fmt.Errorf("invalid GEOCODE_API %q: %w", cfg.geocodeAPI, err)
+	}
 	photonURL, err := url.Parse(cfg.photonAPI)
 	if err != nil {
 		return nil, fmt.Errorf("invalid PHOTON_API %q: %w", cfg.photonAPI, err)
 	}
 
 	api := &apiHandlers{
-		meteoURL:  meteoURL,
-		photonURL: photonURL,
-		client:    &http.Client{Timeout: upstreamTimeout},
+		meteoURL:   meteoURL,
+		geocodeURL: geocodeURL,
+		photonURL:  photonURL,
+		client:     &http.Client{Timeout: upstreamTimeout},
 	}
 
 	mux := http.NewServeMux()
@@ -43,14 +50,131 @@ func newRouter(cfg config) (http.Handler, error) {
 }
 
 func (a *apiHandlers) getCities(w http.ResponseWriter, r *http.Request) {
-	keyword := r.URL.Query().Get("keyword")
+	keyword := strings.TrimSpace(r.URL.Query().Get("keyword"))
 	if keyword == "" {
 		badRequest(w, "Missing keyword")
 		return
 	}
 
 	log.Printf("keyword: %s", keyword)
-	a.proxy(w, r, a.photonURL, "/api/", url.Values{"q": {keyword}})
+
+	collection, err := a.searchCities(r, keyword)
+	if err != nil {
+		upstreamError(w, err)
+		return
+	}
+
+	writeJSON(w, collection)
+}
+
+// geocodeResponse is the subset of the Open-Meteo geocoding response we need.
+type geocodeResponse struct {
+	Results []geocodeResult `json:"results"`
+}
+
+type geocodeResult struct {
+	ID          int64    `json:"id"`
+	Name        string   `json:"name"`
+	Latitude    float64  `json:"latitude"`
+	Longitude   float64  `json:"longitude"`
+	FeatureCode string   `json:"feature_code"`
+	CountryCode string   `json:"country_code"`
+	Country     string   `json:"country"`
+	Admin1      string   `json:"admin1"`
+	Postcodes   []string `json:"postcodes"`
+}
+
+// featureCollection mirrors the GeoJSON shape the frontend already consumes.
+type featureCollection struct {
+	Type     string       `json:"type"`
+	Features []geoFeature `json:"features"`
+}
+
+type geoFeature struct {
+	Type       string          `json:"type"`
+	Geometry   geoGeometry     `json:"geometry"`
+	Properties geoFeatureProps `json:"properties"`
+}
+
+type geoGeometry struct {
+	Type        string     `json:"type"`
+	Coordinates [2]float64 `json:"coordinates"`
+}
+
+type geoFeatureProps struct {
+	OSMID       int64  `json:"osm_id"`
+	Name        string `json:"name"`
+	State       string `json:"state,omitempty"`
+	Country     string `json:"country,omitempty"`
+	CountryCode string `json:"countrycode,omitempty"`
+	Type        string `json:"type,omitempty"`
+	Postcode    string `json:"postcode,omitempty"`
+}
+
+// searchCities queries Open-Meteo's geocoding API and adapts its response to
+// the Photon-compatible GeoJSON contract expected by the web app.
+func (a *apiHandlers) searchCities(r *http.Request, keyword string) (featureCollection, error) {
+	target := *a.geocodeURL
+	target.Path = strings.TrimSuffix(a.geocodeURL.Path, "/") + "/v1/search"
+	target.RawQuery = url.Values{
+		"name":     {keyword},
+		"count":    {"10"},
+		"language": {"en"},
+		"format":   {"json"},
+	}.Encode()
+
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, target.String(), nil)
+	if err != nil {
+		return featureCollection{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "weather-service")
+
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return featureCollection{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return featureCollection{}, fmt.Errorf("geocoding API returned %s", resp.Status)
+	}
+
+	var payload geocodeResponse
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return featureCollection{}, fmt.Errorf("decode geocoding response: %w", err)
+	}
+
+	features := make([]geoFeature, 0, len(payload.Results))
+	for _, result := range payload.Results {
+		if result.Name == "" {
+			continue
+		}
+
+		postcode := ""
+		if len(result.Postcodes) > 0 {
+			postcode = result.Postcodes[0]
+		}
+
+		features = append(features, geoFeature{
+			Type: "Feature",
+			Geometry: geoGeometry{
+				Type:        "Point",
+				Coordinates: [2]float64{result.Longitude, result.Latitude},
+			},
+			Properties: geoFeatureProps{
+				OSMID:       result.ID,
+				Name:        result.Name,
+				State:       result.Admin1,
+				Country:     result.Country,
+				CountryCode: result.CountryCode,
+				Type:        result.FeatureCode,
+				Postcode:    postcode,
+			},
+		})
+	}
+
+	return featureCollection{Type: "FeatureCollection", Features: features}, nil
 }
 
 func (a *apiHandlers) getReverse(w http.ResponseWriter, r *http.Request) {
@@ -130,6 +254,17 @@ func (a *apiHandlers) proxy(w http.ResponseWriter, r *http.Request, base *url.UR
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(body)
+}
+
+func writeJSON(w http.ResponseWriter, value any) {
+	body, err := json.Marshal(value)
+	if err != nil {
+		upstreamError(w, err)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(body)

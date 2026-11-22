@@ -1,9 +1,64 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { City, Coordinate } from "./model"
+import { CoordinateValidator } from "./validator"
+
+const CITY_CACHE_KEY = "city-session"
+const CITY_CACHE_VERSION = 2
+const CITY_CACHE_TTL_MS = 24 * 60 * 60 * 1000
+
+type CachedCity = {
+  version: number
+  savedAt: number
+  city: City
+}
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
+}
+
+export function loadCachedCity(): City | undefined {
+  try {
+    const raw = sessionStorage.getItem(CITY_CACHE_KEY)
+    if (!raw) return undefined
+
+    const cached = JSON.parse(raw) as Partial<CachedCity>
+    const city = cached.city
+
+    const isValid =
+      cached.version === CITY_CACHE_VERSION &&
+      typeof cached.savedAt === "number" &&
+      Date.now() - cached.savedAt < CITY_CACHE_TTL_MS &&
+      city !== undefined &&
+      typeof city.city === "string" &&
+      city.city !== "Loading..." &&
+      city.city !== "Unknown location" &&
+      city.coordinate !== undefined &&
+      CoordinateValidator.validateCoordinate(city.coordinate)
+
+    if (!isValid) {
+      sessionStorage.removeItem(CITY_CACHE_KEY)
+      return undefined
+    }
+
+    return city
+  } catch {
+    sessionStorage.removeItem(CITY_CACHE_KEY)
+    return undefined
+  }
+}
+
+export function saveCachedCity(city: City): void {
+  try {
+    const cached: CachedCity = {
+      version: CITY_CACHE_VERSION,
+      savedAt: Date.now(),
+      city,
+    }
+    sessionStorage.setItem(CITY_CACHE_KEY, JSON.stringify(cached))
+  } catch {
+    // Storage can be unavailable (private mode, quota); ignore.
+  }
 }
 
 export function defaultCity(): City {
@@ -55,8 +110,8 @@ export function getGeolocation(): Promise<Coordinate | undefined> {
         },
         {
           enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 60000
+          timeout: 5000,
+          maximumAge: 300000
         }
       );
     } else {

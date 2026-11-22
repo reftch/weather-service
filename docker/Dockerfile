@@ -34,8 +34,8 @@ RUN bun --cwd apps/web build
 # UPX packing cuts the binary to roughly a third of its original size.
 RUN cd apps/api && \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o /$ARTIFACT . && \
-    upx --best /$ARTIFACT
+    go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o /$ARTIFACT . \
+    && upx --best /$ARTIFACT
 
 # Stage 2: minimal runtime image — just the binary, CA certs and frontend.
 FROM scratch
@@ -50,5 +50,8 @@ ENV HOST=0.0.0.0
 ENV PORT=8083
 ENV ASSETS_PATH=/assets
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV METEO_API=https://api.open-meteo.com
+ENV GEOCODE_API=https://geocoding-api.open-meteo.com
+ENV PHOTON_API=https://photon.komoot.io
 
 ENTRYPOINT ["/application"]

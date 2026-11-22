@@ -15,10 +15,11 @@ import (
 )
 
 const (
-	defaultHost      = "127.0.0.1"
-	defaultPort      = 8080
-	defaultMeteoAPI  = "https://api.open-meteo.com"
-	defaultPhotonAPI = "https://photon.komoot.io"
+	defaultHost       = "127.0.0.1"
+	defaultPort       = 8080
+	defaultMeteoAPI   = "https://api.open-meteo.com"
+	defaultGeocodeAPI = "https://geocoding-api.open-meteo.com"
+	defaultPhotonAPI  = "https://photon.komoot.io"
 )
 
 type config struct {
@@ -26,6 +27,7 @@ type config struct {
 	port       int
 	assetsPath string
 	meteoAPI   string
+	geocodeAPI string
 	photonAPI  string
 }
 
@@ -88,6 +90,7 @@ func loadConfig() config {
 		port:       port,
 		assetsPath: resolveAssetsPath(),
 		meteoAPI:   envOrDefault("METEO_API", defaultMeteoAPI),
+		geocodeAPI: envOrDefault("GEOCODE_API", defaultGeocodeAPI),
 		photonAPI:  envOrDefault("PHOTON_API", defaultPhotonAPI),
 	}
 }

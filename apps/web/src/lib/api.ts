@@ -1,20 +1,27 @@
 import type { City, Coordinate } from "./model";
 import { defaultCity } from "./utils";
 
-export const getCity = async (coordinate: Coordinate): Promise<City | undefined> => {
-  const response = await fetch(`/api/v1/reverse?lat=${coordinate.latitude}&lon=${coordinate.longitude}`);
-  if (!response.ok) {
-    return
-  }
+export const getCity = async (coordinate: Coordinate): Promise<City> => {
+  // Reverse geocoding is best-effort: weather still works when it fails.
+  const city: City = {
+    ...defaultCity(),
+    city: 'Unknown location',
+    coordinate,
+  };
 
-  let city: City = defaultCity();
-  city.coordinate = coordinate;
+  try {
+    const response = await fetch(`/api/v1/reverse?lat=${coordinate.latitude}&lon=${coordinate.longitude}`);
+    if (!response.ok) {
+      return city;
+    }
 
-  const json = await response.json();
-  if (json && json.features.length > 0) {
-    const c: any = json.features[0];
+    const json = await response.json();
+    const c: any = json?.features?.[0];
+    if (!c) {
+      return city;
+    }
 
-    city = {
+    return {
       id: c.properties.osm_id,
       key: c.properties.osm_key,
       value: c.properties.osm_value,
@@ -23,12 +30,12 @@ export const getCity = async (coordinate: Coordinate): Promise<City | undefined>
       street: c.properties.street,
       type: c.properties.type,
       district: c.properties.district,
-      city: c.properties.city,
+      city: c.properties.city ?? 'Unknown location',
       state: c.properties.state,
       country: c.properties.country,
       countrycode: c.properties.countrycode,
       elevation: 0,
-      coordinate: coordinate,
+      coordinate,
       current: {
         temperature_2m: 0,
         interval: 0,
@@ -36,20 +43,27 @@ export const getCity = async (coordinate: Coordinate): Promise<City | undefined>
         weather_code: 99
       },
     };
+  } catch (error) {
+    console.error('Reverse geocoding failed:', error);
+    return city;
   }
-
-  return city;
 }
 
 export const getCities = async (keyword: string): Promise<Array<City>> => {
   const array: Array<City> = []
-  const response = await fetch(`/api/v1/cities?keyword=${keyword}`);
-  if (!response.ok) {
+  let json: any
+  try {
+    const response = await fetch(`/api/v1/cities?keyword=${encodeURIComponent(keyword)}`);
+    if (!response.ok) {
+      return array;
+    }
+    json = await response.json();
+  } catch (error) {
+    console.error('City search failed:', error);
     return array;
   }
 
-  const json = await response.json();
-  if (json && json.features.length > 0) {
+  if (json && json.features?.length > 0) {
     json.features.forEach((c: any) => array.push({
       id: c.properties.osm_id,
       city: c.properties.name,
@@ -86,12 +100,17 @@ export const getCities = async (keyword: string): Promise<Array<City>> => {
 
 // Add to web/src/lib/api.ts
 export const getMeteo = async (city: City): Promise<City> => {
-  const response = await fetch(`/api/v1/temperature?latidude=${city.coordinate.latitude}&longtitude=${city.coordinate.longitude}`);
-  if (!response.ok) {
+  let json: any
+  try {
+    const response = await fetch(`/api/v1/temperature?latidude=${city.coordinate.latitude}&longtitude=${city.coordinate.longitude}`);
+    if (!response.ok) {
+      return city;
+    }
+    json = await response.json();
+  } catch (error) {
+    console.error('Weather lookup failed:', error);
     return city;
   }
-
-  const json = await response.json();
   city.current = json.current;
   city.elevation = json.elevation;
 

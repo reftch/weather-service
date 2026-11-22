@@ -1,11 +1,11 @@
 # Weather Service
 
-A full-stack web application providing weather information, city search (via Photon), and reverse geocoding, along with current weather forecasts (via Open-Meteo).
+A full-stack web application providing weather information, city search (via Open-Meteo Geocoding), and reverse geocoding (via Photon), along with current weather forecasts (via Open-Meteo).
 
 ## Features
 
-- **City Search**: Search for cities using keywords.
-- **Reverse Geocoding**: Get location details from latitude and longitude.
+- **City Search**: Search for cities using keywords through Open-Meteo's geocoding API.
+- **Reverse Geocoding**: Get location details from latitude and longitude via Photon.
 - **Weather Forecast**: Real-time weather updates including temperature, wind speed, and more.
 - **Modern Frontend**: Built with Preact, Tailwind CSS, and Vite.
 - **High Performance**: Go backend with a statically linked binary.
@@ -84,8 +84,22 @@ Output goes to `apps/web/dist`, which is what the backend serves.
 | `HOST` | `127.0.0.1` | Listen address (`0.0.0.0` in the container). |
 | `PORT` | `8080` | Listen port (`8083` in the container). |
 | `ASSETS_PATH` | auto-detected | Built frontend directory (`/assets` in the container). |
-| `METEO_API` | `https://api.open-meteo.com` | Open-Meteo base URL. |
-| `PHOTON_API` | `https://photon.komoot.io` | Photon base URL. |
+| `METEO_API` | `https://api.open-meteo.com` | Open-Meteo forecast base URL. |
+| `GEOCODE_API` | `https://geocoding-api.open-meteo.com` | Open-Meteo city search base URL. |
+| `PHOTON_API` | `https://photon.komoot.io` | Photon base URL (reverse geocoding only). |
+
+### External services
+
+| Feature | Provider | Endpoint used |
+| --- | --- | --- |
+| City search | Open-Meteo Geocoding | `https://geocoding-api.open-meteo.com/v1/search` |
+| Weather forecast | Open-Meteo | `https://api.open-meteo.com/v1/forecast` |
+| Reverse geocoding | Photon | `https://photon.komoot.io/reverse` |
+
+City search uses Open-Meteo's geocoding API because the public Photon instance rate-limits
+bursty traffic. The backend converts the Open-Meteo response into the same GeoJSON shape
+the frontend previously received from Photon, so the `/api/v1/cities` contract is unchanged.
+`GEOCODE_API` can point at a self-hosted or alternative Open-Meteo-compatible geocoder.
 
 ## Docker Deployment
 
@@ -112,10 +126,17 @@ docker build -t weather-service:0.1.1 -f docker/Dockerfile .
 ### Running the Container
 
 ```bash
-docker run -p 8083:8083 weather-service:0.1.1
+docker run -p 8083:8083 \
+  -e METEO_API=https://api.open-meteo.com \
+  -e GEOCODE_API=https://geocoding-api.open-meteo.com \
+  -e PHOTON_API=https://photon.komoot.io \
+  weather-service:0.1.1
 ```
 
 The service will be accessible at `http://localhost:8083`.
+
+The image already sets these three upstream URLs as defaults, so the `-e` flags are only
+needed when overriding them. `docker/compose.yml` sets the same values explicitly.
 
 ## API Endpoints
 
@@ -123,10 +144,19 @@ The service will be accessible at `http://localhost:8083`.
 
 `GET /api/v1/cities?keyword=<name>`
 
+Searches populated places through Open-Meteo Geocoding and returns a GeoJSON
+`FeatureCollection` (`type`, `geometry.coordinates`, and `properties` such as `name`,
+`state`, `country`, `countrycode`, and `postcode`). The keyword is URL-decoded and trimmed
+before the upstream request.
+
 ### Reverse Geocoding
 
 `GET /api/v1/reverse?lat=<latitude>&lon=<longitude>`
 
+Returns Photon's reverse-geocoding GeoJSON for the given coordinates.
+
 ### Weather Forecast
 
 `GET /api/v1/temperature?latidude=<latitude>&longtitude=<longitude>`
+
+The misspelled parameter names are intentional and kept for compatibility with the web app.

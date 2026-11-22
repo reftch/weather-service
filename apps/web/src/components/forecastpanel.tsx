@@ -11,11 +11,11 @@ export const ForecastPanelSkeleton = () => (
     </CardHeader>
     <div className="grid mt-2 items-center px-4 pb-4 gap-1">
       {Array.from({ length: 10 }).map((_, i) => (
-        <div key={i} className="w-full flex flex-row gap-2 items-center px-5 h-12 bg-muted rounded-md">
-          <Skeleton className="h-4 w-20 basis-3/6" />
-          <Skeleton className="h-4 w-24 basis-5/6 hidden sm:block" />
-          <div className="flex items-center gap-2 basis-4/6 justify-end">
-            <Skeleton className="h-6 w-6 rounded-full" />
+        <div key={i} className="grid grid-cols-[6.5rem_minmax(0,1fr)_auto] gap-2 items-center px-5 h-12 bg-muted rounded-md">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-4 w-24 hidden sm:block" />
+          <div className="flex items-center justify-end gap-2">
+            <Skeleton className="h-6 w-7 rounded-full" />
             <Skeleton className="h-4 w-8" />
             <Skeleton className="h-4 w-8" />
           </div>
@@ -77,24 +77,26 @@ const ForecastPanel = ({ city, onCurrentDay }: ForecastPanelProps) => {
             return (
               <div
                 key={index}
-                className="w-full flex flex-row gap-2 items-center justify-start text-left px-5 h-12 w-28 bg-muted mb-1 border-b cursor-pointer hover:bg-primary-foreground"
+                className="grid grid-cols-[6.5rem_minmax(0,1fr)_auto] gap-2 items-center px-5 h-12 bg-muted mb-1 border-b cursor-pointer hover:bg-primary-foreground"
                 onClick={() => onCurrentDay(index)}
               >
-                <div className="basis-3/6 font-semibold">
+                <div className="font-semibold whitespace-nowrap">
                   <span>{index === 0 ? 'Today' : dayName}</span>
-                  {index > 0 ? <span>{monthDay}</span> : null}
+                  {index > 0 ? <span className="ml-1 text-muted-foreground">{monthDay}</span> : null}
                 </div>
 
-                {showWindSpeed && (
-                  <div className="text-left basis-5/6">
-                    <span className="font-semibold">Wind</span> <span>{day.wind_speed_10m_max}</span> km/h
-                  </div>
-                )}
+                <div className="min-w-0 truncate text-left">
+                  {showWindSpeed && (
+                    <>
+                      <span className="font-semibold">Wind</span> <span>{day.wind_speed_10m_max}</span> km/h
+                    </>
+                  )}
+                </div>
 
-                <div className="flex items-center space-x-1 text-xl w-min-22 basis-4/6 justify-end">
-                  <span className="pr-5 text-2xl">{weatherIcons[day.weather_code as keyof typeof weatherIcons]}</span>
-                  <span className="text-chart-2 pr-2 text-base">{Math.round(day.temperature_2m_min)}°</span>
-                  <span className="text-blue-600">{Math.round(day.temperature_2m_max)}°</span>
+                <div className="flex shrink-0 items-center justify-end gap-2 text-xl tabular-nums">
+                  <span className="w-7 shrink-0 text-center text-2xl">{weatherIcons[day.weather_code as keyof typeof weatherIcons]}</span>
+                  <span className="w-8 shrink-0 text-right text-base text-chart-2">{Math.round(day.temperature_2m_min)}°</span>
+                  <span className="w-8 shrink-0 text-right text-blue-600">{Math.round(day.temperature_2m_max)}°</span>
                 </div>
               </div>
             );

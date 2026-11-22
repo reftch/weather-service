@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/compat";
+import { useEffect, useRef, useState } from "preact/compat";
 import { cn } from "../lib/utils";
 import { Field } from "./ui/field";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "./ui/input-group";
@@ -30,6 +30,8 @@ function HeaderSearch({ className, onSearch, ...props }: HeaderSearchProps) {
   const [city] = useState<City>()
   const [cities, setCities] = useState<Array<City>>([])
   const [filteredCities, setFilteredCities] = useState<City[]>([]);
+  const searchTimer = useRef<number | undefined>(undefined)
+  const searchRequest = useRef(0)
 
   // Filter cities based on input
   useEffect(() => {
@@ -68,6 +70,8 @@ function HeaderSearch({ className, onSearch, ...props }: HeaderSearchProps) {
     const value = input.value;
     setValue(value);
 
+    window.clearTimeout(searchTimer.current)
+
     // check on physical coordinates
     if (CoordinateValidator.validateStringCoordinates(value)) {
       const parsedCoord = CoordinateValidator.parseStringToCoordinate(value);
@@ -75,9 +79,17 @@ function HeaderSearch({ className, onSearch, ...props }: HeaderSearchProps) {
         const c = await getCity(parsedCoord);
         onSearch(c!);
       }
-    } else if (value.length > 0) {
-      const array = await getCities(input.value);
-      setCities(array);
+    } else if (value.trim().length > 0) {
+      // Debounce so typing does not hammer the geocoding API.
+      const request = ++searchRequest.current;
+      searchTimer.current = window.setTimeout(async () => {
+        const array = await getCities(value);
+        if (request === searchRequest.current) {
+          setCities(array);
+        }
+      }, 250);
+    } else {
+      setCities([]);
     }
   };
 
