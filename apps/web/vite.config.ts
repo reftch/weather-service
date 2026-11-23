@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import preact from "@preact/preset-vite";
 import tailwindcss from "@tailwindcss/vite";
@@ -10,6 +11,11 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3000";
 export default defineConfig({
   plugins: [preact(), tailwindcss()],
   clearScreen: false,
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./src/test/setup.ts"],
+  },
   server: {
     // The dashboard is served on :8080 — Vite proxies the API to the backend.
     port: 8080,

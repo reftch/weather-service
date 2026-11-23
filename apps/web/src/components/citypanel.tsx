@@ -36,7 +36,9 @@ const CityPanel = ({ city }: { city: City }) => {
             return (
               <div key={key} className="flex justify-between gap-6">
                 <span className="text-chart-2">{label}:</span>
-                <span className="font-medium text-right break-words">{value}</span>
+                <span className="font-medium text-right wrap-break-words">
+                  {value}
+                </span>
               </div>
             );
           }

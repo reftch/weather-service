@@ -10,7 +10,7 @@ BINARY := apps/api/weather-service
 # Docker Compose file for the containerised stack.
 COMPOSE := docker compose -f docker/compose.yml
 
-.PHONY: build dev dev-backend dev-frontend web-install web-build api-build api-test clean \
+.PHONY: build dev dev-backend dev-frontend web-install web-build web-test api-build api-test clean \
         docker-build docker-up docker-down docker-logs docker-restart
 
 # Frontend deps (once, or after package.json changes).
@@ -20,6 +20,10 @@ web-install:
 # Production frontend build -> apps/web/dist (single source, Go serves from there).
 web-build: web-install
 	cd apps/web && bun run build
+
+# Run the frontend test suite (vitest).
+web-test: web-install
+	cd apps/web && bun run test
 
 # Backend only: Go service on $(BACKEND_PORT).
 dev-backend:
@@ -53,8 +57,10 @@ build: api-build web-build
 
 # --- Tests ---
 
+# Run both the backend and the frontend test suites.
 test:
-	cd apps/api && go test -v ./...
+	$(MAKE) api-test
+	$(MAKE) web-test
 
 # --- Containerised stack (Docker Compose) ---
 
